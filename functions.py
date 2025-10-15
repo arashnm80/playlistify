@@ -61,7 +61,7 @@ def search_song_thread_safe(song, similarity_threshold):
                 # Rate limited - wait longer before retry
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                    print(f"⚠️  Rate limited, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                    print(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
                     time.sleep(wait_time)
                     continue
             else:
@@ -71,7 +71,7 @@ def search_song_thread_safe(song, similarity_threshold):
     # If we get here, all retries failed
     with progress_lock:
         processed_count += 1
-        print(f"❌ Failed to search '{song}' after {max_retries} attempts")
+        print(f"Failed to search '{song}' after {max_retries} attempts")
     return None, song, None, 0.0
 
 def create_new_playlist(telegram_channel_username):
@@ -102,12 +102,12 @@ def create_new_playlist(telegram_channel_username):
             # Create description with channel info
             playlist_description = f"Automatically generated playlist from @{channel_username} - {channel_title if channel_title else 'Telegram Channel'}"
             
-            print(f"📺 Creating playlist: {playlist_name}")
-            print(f"📝 Description: {playlist_description}")
+            print(f"Creating playlist: {playlist_name}")
+            print(f"Description: {playlist_description}")
             
     except Exception as e:
-        print(f"⚠️  Could not read channel info from musics.json: {e}")
-        print(f"📺 Using default playlist name: {playlist_name}")
+        print(f"Could not read channel info from musics.json: {e}")
+        print(f"Using default playlist name: {playlist_name}")
     
     # Création de la playlist
     playlist = sp.user_playlist_create(
@@ -133,11 +133,11 @@ def create_new_playlist(telegram_channel_username):
             with open(image_path, "rb") as image_file:
                 image_data = base64.b64encode(image_file.read())
             sp.playlist_upload_cover_image(playlist_id, image_data)
-            print(f"✅ Playlist cover image uploaded successfully from {image_path}")
+            print(f"Playlist cover image uploaded successfully from {image_path}")
         else:
-            print("⚠️  No cover image found (channel_profile.png or image.png). Playlist created without cover image.")
+            print("No cover image found (channel_profile.png or image.png). Playlist created without cover image.")
     except Exception as e:
-        print(f"⚠️  Error uploading cover image: {e}")
+        print(f"Error uploading cover image: {e}")
 
     # Affichage de l'ID de la playlist créée
     print("Playlist ID:", playlist_id)
@@ -173,21 +173,21 @@ def set_playlist_tracks(playlist_id):
         song_names = [f"{song_data['title']} - {song_data['artist']}" for song_id, song_data in musics_json.items()]
 
     # Effacer toutes les pistes existantes de la playlist
-    print("🗑️ Suppression de toutes les pistes existantes de la playlist...")
+    print("Suppression de toutes les pistes existantes de la playlist...")
     playlist_tracks = sp.playlist_items(playlist_id)
     if playlist_tracks['items']:
         track_ids = [item['track']['id'] for item in playlist_tracks['items']]
         sp.playlist_remove_all_occurrences_of_items(playlist_id, track_ids)
-        print(f"✅ {len(track_ids)} pistes supprimées de la playlist.")
+        print(f"{len(track_ids)} pistes supprimées de la playlist.")
     else:
-        print("ℹ️ La playlist est déjà vide.")
+        print("La playlist est déjà vide.")
 
     total_songs = len(song_names)
-    print(f"🎵 Processing {total_songs} songs with multithreading...")
+    print(f"Processing {total_songs} songs with multithreading...")
     
     # Use fewer threads to avoid rate limiting
     max_workers = min(5, total_songs)  # Reduced from 20 to 5 to avoid rate limits
-    print(f"⚡ Using {max_workers} threads to avoid rate limiting")
+    print(f"Using {max_workers} threads to avoid rate limiting")
     
     # Use multithreading to search for songs
     track_uris = []
@@ -210,31 +210,31 @@ def set_playlist_tracks(playlist_id):
                 if track_uri:
                     track_uris.append(track_uri)
                     if similarity_score >= 0.8:  # Only show high-confidence matches to reduce spam
-                        print(f"✅ Found: {original_song} (Similarity: {similarity_score:.2%})")
+                        print(f"Found: {original_song} (Similarity: {similarity_score:.2%})")
                 elif found_track_full and similarity_score < SIMILARITY_THRESHOLD:
                     # Only show low similarity for first 20 to reduce spam
                     if len(track_uris) < 20:
-                        print(f"⚠️ Low match: {original_song} → {found_track_full} (Similarity: {similarity_score:.2%})")
+                        print(f"Low match: {original_song} → {found_track_full} (Similarity: {similarity_score:.2%})")
                         
             except Exception as e:
-                print(f"❌ Error processing '{song}': {e}")
+                print(f"Error processing '{song}': {e}")
 
     elapsed_time = time.time() - start_time
-    print(f"\n⚡ Multithreaded search completed in {elapsed_time:.1f} seconds")
-    print(f"🎯 Found {len(track_uris)} matching tracks out of {total_songs} songs")
+    print(f"\nMultithreaded search completed in {elapsed_time:.1f} seconds")
+    print(f"Found {len(track_uris)} matching tracks out of {total_songs} songs")
 
     # Ajouter les morceaux trouvés à la playlist par lots de 100 maximum
     if track_uris:
-        print(f"📝 Adding {len(track_uris)} tracks to playlist...")
+        print(f"Adding {len(track_uris)} tracks to playlist...")
         # Diviser les pistes en lots de 100 maximum
         batch_size = 100
         for i in range(0, len(track_uris), batch_size):
             batch = track_uris[i:i+batch_size]
             sp.playlist_add_items(playlist_id, batch)
-            print(f"✅ Batch {i//batch_size + 1}: {len(batch)} tracks added to playlist.")
+            print(f"Batch {i//batch_size + 1}: {len(batch)} tracks added to playlist.")
             # Add 2 second pause between batches to avoid rate limiting
             time.sleep(2)
         
-        print(f"🎉 Total: {len(track_uris)} tracks successfully added to playlist!")
+        print(f"Total: {len(track_uris)} tracks successfully added to playlist!")
     else:
-        print("⚠️ No matching tracks found to add.")
+        print("No matching tracks found to add.")

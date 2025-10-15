@@ -4,4 +4,6 @@ __pycache__/
 .env
 .cache
 musics.json
-image.jpg
+image.png
+music_metadata_session.session
+.DS_Store
