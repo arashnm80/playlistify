@@ -1,3 +1,4 @@
 spotipy
 requests[socks]
 dotenv
+telethon
