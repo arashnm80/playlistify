@@ -1,7 +1,11 @@
+# folders
 venv/
 __pycache__/
 
+# files
 .env
 .cache
 musics.json
 image.jpg
+*.session
+*.session-journal

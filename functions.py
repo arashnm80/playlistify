@@ -1,5 +1,73 @@
 from config import *
 
+async def fetch_channel_musics_and_profile(telethon_client, messages_count, channel_username):
+    async def safe_get_entity(username):
+        try:
+            print("Trying to get Telegram entity...")
+            return await telethon_client.get_entity(username)
+        except telethon.errors.FloodWaitError as e:
+            print(f"Rate limited. Waiting {e.seconds} seconds.")
+            await asyncio.sleep(e.seconds)
+            return await safe_get_entity(username)
+    
+    async def fetch_messages_and_profile():
+        channel = await safe_get_entity(channel_username)
+
+        # get profile photo of channel
+        await telethon_client.download_profile_photo(channel, file="image.jpg")
+
+        messages = await telethon_client.get_messages(
+            channel,
+            limit=messages_count,
+            filter=telethon.tl.types.InputMessagesFilterMusic(),
+        )
+
+        # Tri par ID croissant
+        messages = sorted(messages, key=lambda m: m.id)
+
+        # Dictionnaire pour stocker les morceaux valides
+        musics = {}
+
+        for msg in messages:
+            if msg.media and msg.media.document:
+                attrs = msg.media.document.attributes
+                file_name = None
+                title = None
+                performer = None
+
+                for attr in attrs:
+                    if hasattr(attr, 'file_name'):
+                        file_name = attr.file_name
+                    if hasattr(attr, 'title'):
+                        title = attr.title
+                    if hasattr(attr, 'performer'):
+                        performer = attr.performer
+
+                print("------------")
+                print(f"Message ID: {msg.id}")
+                if title and performer:
+                    print(f"Titre: {title}")
+                    print(f"Artiste: {performer}")
+                    musics[str(msg.id)] = {
+                        "title": title,
+                        "artist": performer
+                    }
+                elif file_name:
+                    print(f"Nom de fichier (fallback): {file_name}")
+                else:
+                    print("Aucune info détectée")
+
+        # Sauvegarde dans un fichier JSON
+        with open("musics.json", "w", encoding="utf-8") as f:
+            json.dump(musics, f, indent=2, ensure_ascii=False)
+
+        print(f"Fetched {len(messages)} music messages.")
+        print(f"Saved {len(musics)} valid music entries to musics.json.")
+        
+    async with telethon_client:
+        await fetch_messages_and_profile()
+
+
 def create_new_playlist(telegram_channel_username):
     '''
     create new playlist for channel and set title, description and image for it
@@ -56,7 +124,9 @@ def set_playlist_tracks(playlist_id):
     def calculate_similarity(a, b):
         return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
-    for song in song_names:
+    total_songs = len(song_names)
+    for i, song in enumerate(song_names):
+        prefix = f"{i+1} / {total_songs}: "
         result = sp.search(q=song, limit=1, type="track")
         tracks = result.get("tracks", {}).get("items", [])
         if tracks:
@@ -71,11 +141,11 @@ def set_playlist_tracks(playlist_id):
             
             if similarity_score >= SIMILARITY_THRESHOLD:
                 track_uris.append(found_track["uri"])
-                print(f"✅ Trouvé: {song} (Similarité: {similarity_score:.2%})")
+                print(f"{prefix}✅ Trouvé: {song} (Similarité: {similarity_score:.2%})")
             else:
-                print(f"⚠️ Faible correspondance: {song} → {found_track_full} (Similarité: {similarity_score:.2%})")
+                print(f"{prefix}⚠️ Faible correspondance: {song} → {found_track_full} (Similarité: {similarity_score:.2%})")
         else:
-            print(f"❌ Introuvable: {song}")
+            print(f"{prefix}❌ Introuvable: {song}")
 
     # Ajouter les morceaux trouvés à la playlist par lots de 100 maximum
     if track_uris:
