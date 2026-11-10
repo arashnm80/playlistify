@@ -1,77 +1,36 @@
 from config import *
 
-async def fetch_channel_musics_and_profile(telethon_client, messages_count, channel_username):
-    async def safe_get_entity(username):
-        try:
-            print("Trying to get Telegram entity...")
-            return await telethon_client.get_entity(username)
-        except telethon.errors.FloodWaitError as e:
-            print(f"Rate limited. Waiting {e.seconds} seconds.")
-            await asyncio.sleep(e.seconds)
-            return await safe_get_entity(username)
-    
-    async def fetch_messages_and_profile():
-        channel = await safe_get_entity(channel_username)
+def fetch_channel_musics_and_profile(messages_count, channel_username):
+    """Fetch music catalog + profile photo via private-router (no local Telethon)."""
+    print("Requesting channel music from private-router...")
+    data = private_router_channel_music(channel_username, limit=messages_count)
 
-        # get profile photo of channel
-        await telethon_client.download_profile_photo(channel, file="image.jpg")
+    musics = data.get("musics") or {}
+    with open("musics.json", "w", encoding="utf-8") as f:
+        json.dump(musics, f, indent=2, ensure_ascii=False)
 
-        messages = await telethon_client.get_messages(
-            channel,
-            limit=messages_count,
-            filter=telethon.tl.types.InputMessagesFilterMusic(),
-        )
+    photo_b64 = data.get("profile_photo_base64")
+    if photo_b64:
+        with open("image.jpg", "wb") as f:
+            f.write(base64.b64decode(photo_b64))
+        print("Saved profile photo to image.jpg")
+    else:
+        print("No profile photo returned")
 
-        # Tri par ID croissant
-        messages = sorted(messages, key=lambda m: m.id)
-
-        # Dictionnaire pour stocker les morceaux valides
-        musics = {}
-
-        for msg in messages:
-            if msg.media and msg.media.document:
-                attrs = msg.media.document.attributes
-                file_name = None
-                title = None
-                performer = None
-
-                for attr in attrs:
-                    if hasattr(attr, 'file_name'):
-                        file_name = attr.file_name
-                    if hasattr(attr, 'title'):
-                        title = attr.title
-                    if hasattr(attr, 'performer'):
-                        performer = attr.performer
-
-                print("------------")
-                print(f"Message ID: {msg.id}")
-                if title and performer:
-                    print(f"Titre: {title}")
-                    print(f"Artiste: {performer}")
-                    musics[str(msg.id)] = {
-                        "title": title,
-                        "artist": performer
-                    }
-                elif file_name:
-                    print(f"Nom de fichier (fallback): {file_name}")
-                else:
-                    print("Aucune info détectée")
-
-        # Sauvegarde dans un fichier JSON
-        with open("musics.json", "w", encoding="utf-8") as f:
-            json.dump(musics, f, indent=2, ensure_ascii=False)
-
-        print(f"Fetched {len(messages)} music messages.")
-        print(f"Saved {len(musics)} valid music entries to musics.json.")
-        
-    async with telethon_client:
-        await fetch_messages_and_profile()
+    print(f"Fetched {data.get('fetched_messages', 0)} music messages.")
+    print(f"Saved {len(musics)} valid music entries to musics.json.")
+    for msg_id, song in musics.items():
+        print("------------")
+        print(f"Message ID: {msg_id}")
+        print(f"Titre: {song.get('title')}")
+        print(f"Artiste: {song.get('artist')}")
 
 
 def create_new_playlist(telegram_channel_username):
     '''
     create new playlist for channel and set title, description and image for it
     '''
+    sp, user_id = get_spotify()
     # Création de la playlist
     playlist = sp.user_playlist_create(
         user=user_id,
@@ -100,6 +59,7 @@ def set_playlist_tracks(playlist_id):
     set tracks for given playlist id based on musics.json file
     matches songs based on similarity threshold
     '''
+    sp, _user_id = get_spotify()
     # Charger les données JSON depuis le fichier
     with open('musics.json', 'r') as f:
         musics_json = json.load(f)

@@ -1,5 +1,5 @@
 spotipy
 requests[socks]
 dotenv
-telethon
+httpx[socks]
 asyncio
