@@ -9,7 +9,9 @@ import httpx
 # Load environment variables from .env file
 load_dotenv()
 
-## private-router (Telethon user session + Spotify Premium Web API)
+## private-router (Telethon + Spotify)
+# Search/metadata → diamond Premium developer app on the router.
+# Playlist create/cover/replace → playlistify Spotify user OAuth on the router.
 PRIVATE_ROUTER_URL = os.environ.get('PRIVATE_ROUTER_URL', 'http://127.0.0.1:3010').rstrip('/')
 PRIVATE_ROUTER_TOKEN = os.environ.get('PRIVATE_ROUTER_TOKEN', '')
 
